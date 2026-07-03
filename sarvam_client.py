@@ -111,10 +111,12 @@ class SarvamClient:
         payload = {
             "text": text,
             "target_language_code": language_code,
-            "speaker": "anushka",
+            "speaker": "ritu",
             "model": "bulbul:v3",
-            "speech_sample_rate": 24000,
-            "pace": 1.05
+            "properties": {
+                "speech_sample_rate": 24000,
+                "pace": 1.05
+            }
         }
         
         try:
@@ -127,6 +129,8 @@ class SarvamClient:
             return base64.b64decode(audio_b64)
         except Exception as e:
             print(f"TTS Error: {e}")
+            if 'response' in locals():
+                print(f"TTS Response Content: {response.text}")
             raise e
 
     def _heuristic_parse(self, transcript: str) -> Dict[str, Any]:
