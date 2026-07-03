@@ -1,0 +1,757 @@
+/* --- CSS variables for Industrial Tactile Theme --- */
+:root {
+    --bg-terminal: #07080d;
+    --bg-panel: #0f111a;
+    --border-terminal: #1e2338;
+    --border-accent: #2c3252;
+    
+    /* VFD glowing states */
+    --vfd-green: #10b981;
+    --vfd-green-glow: rgba(16, 185, 129, 0.25);
+    --vfd-amber: #f59e0b;
+    --vfd-amber-glow: rgba(245, 158, 11, 0.2);
+    --vfd-red: #ef4444;
+    --vfd-red-glow: rgba(239, 68, 68, 0.25);
+    
+    --text-terminal-bright: #e2e8f0;
+    --text-terminal-dim: #64748b;
+    
+    --font-sans: 'Space Grotesk', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+    
+    /* Tactile shadows */
+    --button-shadow: 0 4px 0px #0a0b10;
+    --card-shadow: 0 8px 0px #030406;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-terminal);
+    color: var(--text-terminal-bright);
+    font-family: var(--font-sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+    /* Subtle industrial hatch pattern background */
+    background-image: radial-gradient(rgba(255,255,255,0.015) 1px, transparent 0);
+    background-size: 24px 24px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.font-mono {
+    font-family: var(--font-mono);
+}
+
+/* --- Tactile PIN Lock Matrix --- */
+.pin-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(4, 5, 8, 0.96);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.pin-card {
+    background: var(--bg-panel);
+    border: 2px solid var(--border-terminal);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    padding: 30px;
+    width: 360px;
+    text-align: center;
+    position: relative;
+}
+
+/* Industrial lock plate header */
+.pin-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: repeating-linear-gradient(45deg, var(--vfd-amber), var(--vfd-amber) 10px, #000 10px, #000 20px);
+}
+
+.pin-header h2 {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 1.5rem;
+    color: var(--vfd-amber);
+    margin-top: 15px;
+    margin-bottom: 6px;
+}
+
+.pin-header p {
+    color: var(--text-terminal-dim);
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    margin-bottom: 25px;
+}
+
+.pin-dots {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 30px;
+    background: #07080d;
+    padding: 15px;
+    border: 1px solid var(--border-terminal);
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 0%; /* Sharp square indicators */
+    border: 1px solid var(--border-accent);
+    background: #030406;
+    transition: all 0.1s ease;
+}
+
+.dot.active {
+    background-color: var(--vfd-amber);
+    box-shadow: 0 0 10px var(--vfd-amber-glow);
+    border-color: var(--vfd-amber);
+}
+
+/* Mechanical Keypad grid */
+.pin-keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.pin-keypad button {
+    background: #151824;
+    border: 1px solid var(--border-terminal);
+    border-bottom: 3px solid #0a0b10;
+    color: var(--text-terminal-bright);
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: 700;
+    height: 58px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.05s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.pin-keypad button:hover {
+    border-color: var(--vfd-amber);
+}
+
+.pin-keypad button:active {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
+}
+
+.pin-keypad button.btn-clear {
+    color: var(--vfd-red);
+}
+
+.pin-keypad button.btn-submit {
+    color: var(--vfd-green);
+}
+
+.pin-error-msg {
+    color: var(--vfd-red);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    margin-top: 20px;
+    opacity: 0;
+}
+
+.pin-error-msg.visible {
+    opacity: 1;
+}
+
+/* --- Main App Container --- */
+.app-container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding-bottom: 140px;
+}
+
+/* Header POS Bar */
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-panel);
+    border: 2px solid var(--border-terminal);
+    border-radius: 4px;
+    padding: 16px 24px;
+    box-shadow: var(--card-shadow);
+}
+
+.logo-area {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-icon {
+    font-size: 1.8rem;
+    color: var(--vfd-green);
+    text-shadow: 0 0 10px var(--vfd-green-glow);
+}
+
+.logo-text h1 {
+    font-weight: 700;
+    font-size: 1.4rem;
+    letter-spacing: 0.5px;
+}
+
+.logo-text p {
+    color: var(--text-terminal-dim);
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Tactile mechanical buttons */
+.btn-action {
+    background: #151824;
+    border: 1px solid var(--border-terminal);
+    border-bottom: 3px solid #090a0f;
+    color: var(--text-terminal-bright);
+    font-family: var(--font-sans);
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.05s ease;
+}
+
+.btn-action:hover {
+    border-color: var(--border-accent);
+}
+
+.btn-action:active {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
+}
+
+.btn-action.summary-btn {
+    border-bottom: 3px solid var(--vfd-green);
+}
+
+.status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--vfd-green);
+    border: 1px solid var(--vfd-green);
+    padding: 6px 12px;
+    background: var(--vfd-green-glow);
+}
+
+.pulse-dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--vfd-green);
+    border-radius: 50%;
+    animation: pulse 1.2s infinite;
+}
+
+/* Grid panel blocks */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 20px;
+}
+
+.right-column-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.grid-section {
+    background: var(--bg-panel);
+    border: 2px solid var(--border-terminal);
+    border-radius: 4px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dashed var(--border-terminal);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+}
+
+.section-header h2 {
+    font-weight: 700;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.section-header h2 i {
+    color: var(--vfd-green);
+    margin-right: 8px;
+}
+
+.badge {
+    background: #07080d;
+    border: 1px solid var(--border-terminal);
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--vfd-green);
+}
+
+/* Ledgers & Margins Tables */
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--text-terminal-dim);
+    border-bottom: 2px solid var(--border-terminal);
+    text-transform: uppercase;
+}
+
+td {
+    padding: 12px 12px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    border-bottom: 1px solid #131724;
+}
+
+tr:hover td {
+    background: #111422;
+}
+
+/* Custom badges */
+.status-tag {
+    padding: 2px 8px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.status-tag.ok {
+    border: 1px solid var(--vfd-green);
+    background: var(--vfd-green-glow);
+    color: var(--vfd-green);
+}
+
+.status-tag.low {
+    border: 1px solid var(--vfd-red);
+    background: var(--vfd-red-glow);
+    color: var(--vfd-red);
+    animation: glowAlert 1.5s infinite;
+}
+
+.amt-credit {
+    color: var(--vfd-red);
+}
+
+.amt-paid {
+    color: var(--vfd-green);
+}
+
+/* Overdue Debt Reminders */
+.reminder-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.reminder-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #131622;
+    border: 1px solid var(--border-terminal);
+    padding: 12px 16px;
+    border-radius: 4px;
+}
+
+.reminder-card:hover {
+    border-color: var(--border-accent);
+}
+
+.reminder-info h4 {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+}
+
+.reminder-info p {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-terminal-dim);
+}
+
+.reminder-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.reminder-debt {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--vfd-red);
+}
+
+.wa-nudge-btn {
+    background: #128c7e;
+    color: #fff;
+    border: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1rem;
+    transition: background 0.15s ease;
+}
+
+.wa-nudge-btn:hover {
+    background: #075e54;
+}
+
+/* --- POS Thermal Receipt Printer Slot --- */
+.printer-console {
+    background: var(--bg-panel);
+    border: 2px solid var(--border-terminal);
+    border-radius: 4px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.printer-slot {
+    background: #030406;
+    height: 14px;
+    border-radius: 10px;
+    border: 2px solid var(--border-terminal);
+    box-shadow: inset 0 3px 6px rgba(0,0,0,0.9);
+    position: relative;
+}
+
+.printer-slot-opening {
+    width: calc(100% - 20px);
+    margin: 0 auto;
+    height: 2px;
+    background: #000;
+}
+
+.terminal-led-status {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--vfd-green);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.led-pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--vfd-green);
+    box-shadow: 0 0 6px var(--vfd-green);
+    animation: pulse 1s infinite;
+}
+
+/* Thermal Paper Roll Sheet styling */
+.receipt-paper {
+    background: #fdfcf7; /* Creamy paper tone */
+    color: #1a1b20; /* Ink color */
+    border: 1px solid #d4d1c5;
+    padding: 20px;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.05), 0 5px 15px rgba(0,0,0,0.4);
+    
+    /* Jagged torn paper edge clipping path */
+    clip-path: polygon(
+        0% 0%, 100% 0%, 100% calc(100% - 8px), 
+        98% 100%, 96% calc(100% - 8px), 94% 100%, 92% calc(100% - 8px), 90% 100%, 
+        88% calc(100% - 8px), 86% 100%, 84% calc(100% - 8px), 82% 100%, 80% calc(100% - 8px), 
+        78% 100%, 76% calc(100% - 8px), 74% 100%, 72% calc(100% - 8px), 70% 100%, 
+        68% calc(100% - 8px), 66% 100%, 64% calc(100% - 8px), 62% 100%, 60% calc(100% - 8px), 
+        58% 100%, 56% calc(100% - 8px), 54% 100%, 52% calc(100% - 8px), 50% 100%, 
+        48% calc(100% - 8px), 46% 100%, 44% calc(100% - 8px), 42% 100%, 40% calc(100% - 8px), 
+        38% 100%, 36% calc(100% - 8px), 34% 100%, 32% calc(100% - 8px), 30% 100%, 
+        28% calc(100% - 8px), 26% 100%, 24% calc(100% - 8px), 22% 100%, 20% calc(100% - 8px), 
+        18% 100%, 16% calc(100% - 8px), 14% 100%, 12% calc(100% - 8px), 10% 100%, 
+        8% calc(100% - 8px), 6% 100%, 4% calc(100% - 8px), 2% 100%, 0% calc(100% - 8px)
+    );
+    
+    transform-origin: top center;
+    max-height: 280px;
+    overflow: hidden;
+    transition: max-height 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* Roll slide out animation when printing */
+.receipt-paper.printing {
+    animation: printSlip 1s ease-out;
+}
+
+.receipt-header {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.receipt-header h3 {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.receipt-date {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: #6a6c75;
+}
+
+.receipt-divider {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: center;
+    letter-spacing: -1px;
+    color: #8c8e96;
+    margin: 8px 0;
+}
+
+.receipt-line {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    line-height: 1.3;
+}
+
+.receipt-line .label {
+    font-weight: 700;
+    color: #5b5d66;
+}
+
+.receipt-line .value {
+    text-align: right;
+    font-weight: 700;
+    max-width: 70%;
+}
+
+/* Glowing text tag badges */
+.value-badge {
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.value-badge.processing {
+    background: #eab308;
+    color: #000;
+}
+
+.value-badge.intent-ok {
+    background: #10b981;
+    color: #fff;
+}
+
+.value-badge.intent-unknown {
+    background: #ef4444;
+    color: #fff;
+}
+
+.receipt-footer {
+    text-align: center;
+    margin-top: 15px;
+    padding-bottom: 10px;
+}
+
+.receipt-footer p {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: #6a6c75;
+    margin-bottom: 6px;
+}
+
+.receipt-barcode {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    letter-spacing: 2px;
+    color: #2c2e36;
+}
+
+/* --- Controls Footer (Mic & Segmented Visualizer) --- */
+.controls-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #0b0d14;
+    border-top: 2px solid var(--border-terminal);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 100;
+}
+
+/* VFD Oscilloscope grid display */
+.visualizer-container {
+    width: 100%;
+    max-width: 680px;
+    height: 48px;
+    background: #030406;
+    border: 2px solid var(--border-terminal);
+    margin-bottom: 12px;
+    position: relative;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
+}
+
+.visualizer-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 4px, 6px 100%;
+    pointer-events: none;
+}
+
+#waveform-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.mic-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+}
+
+/* Industrial heavy REC key button */
+.mic-btn {
+    background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+    border: 2px solid #7f1d1d;
+    border-bottom: 5px solid #450a0a;
+    color: white;
+    width: 60px;
+    height: 60px;
+    border-radius: 4px; /* Industrial square button style */
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    transition: all 0.05s ease;
+}
+
+.mic-btn:hover {
+    background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);
+}
+
+.mic-btn:active, .mic-btn.recording {
+    transform: translateY(3px);
+    border-bottom-width: 2px;
+    background: #ef4444;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+}
+
+.mic-instruction {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-terminal-dim);
+    font-weight: 700;
+}
+
+.recording-time {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    color: var(--vfd-red);
+    font-weight: 700;
+    text-shadow: 0 0 6px var(--vfd-red-glow);
+}
+
+/* --- Keyframe Animations --- */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.2; }
+    100% { opacity: 1; }
+}
+
+@keyframes glowAlert {
+    0% { border-color: rgba(239,68,68,0.2); }
+    50% { border-color: rgba(239,68,68,1); }
+    100% { border-color: rgba(239,68,68,0.2); }
+}
+
+@keyframes printSlip {
+    0% { transform: scaleY(0.4); opacity: 0.8; }
+    100% { transform: scaleY(1); opacity: 1; }
+}
+
+/* Responsiveness overrides */
+@media(max-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}

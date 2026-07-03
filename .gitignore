@@ -1,0 +1,22 @@
+# Python virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache / compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local environment variables / secrets
+.env
+.env.*
+
+# Local SQLite databases
+*.db
+*.sqlite3
+
+# Audio cache folder
+static/audio_cache/*.wav
+!static/audio_cache/error.wav
