@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: dukaanvoice
+    runtime: docker
+    plan: free
+    envVars:
+      - key: SARVAM_API_KEY
+        sync: false
+        description: "Your Sarvam AI API subscription key"
