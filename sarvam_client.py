@@ -18,9 +18,9 @@ class SarvamClient:
             "Content-Type": "application/json"
         }
         
-    def speech_to_text(self, audio_file_path: str, language_code: str = "hi-IN") -> str:
+    def speech_to_text(self, audio_file_path: str, language_code: str = "unknown") -> tuple[str, str]:
         """
-        Sends audio file to Sarvam Saaras STT API and returns transcription.
+        Sends audio file to Sarvam Saaras STT API and returns a tuple of (transcription, language_code).
         """
         url = f"{self.base_url}/speech-to-text"
         headers = {
@@ -42,16 +42,21 @@ class SarvamClient:
                 response = httpx.post(url, headers=headers, files=files, data=data, timeout=30.0)
                 response.raise_for_status()
                 res_data = response.json()
-                return res_data.get("transcript", "")
+                transcript = res_data.get("transcript", "")
+                detected_lang = res_data.get("language_code") or language_code
+                if detected_lang == "unknown":
+                    detected_lang = "hi-IN"
+                return transcript, detected_lang
             except Exception as e:
                 print(f"STT Error: {e}")
                 if response := locals().get("response"):
                     print(f"STT Response Content: {response.text}")
                 raise e
 
-    def parse_command(self, transcript: str) -> Dict[str, Any]:
+    def parse_command(self, transcript: str, detected_lang: str = "hi-IN") -> Dict[str, Any]:
         """
-        Queries Sarvam LLM to convert a raw transcription into structured JSON intent & entities.
+        Queries Sarvam LLM to convert a raw transcription into structured JSON intent & entities,
+        including a voice confirmation sentence in the user's spoken language.
         """
         url = f"{self.base_url}/v1/chat/completions"
         
@@ -68,11 +73,14 @@ class SarvamClient:
             "Keys for entities:\n"
             "- For stock: 'item_name' (string), 'quantity' (integer), 'cost_price' (float, default null), 'selling_price' (float, default null)\n"
             "- For ledger: 'customer_name' (string), 'amount' (float, always positive), 'reason' (string description of goods, default null), 'phone_number' (string, default null)\n\n"
+            f"Additionally, you MUST generate a short, natural confirmation message in the user's detected language: {detected_lang}. "
+            "For example, if adding stock of Maggi and language is ml-IN, write a Malayalam sentence stating that Maggi stock was added. "
+            "Return this message under the 'confirmation_message' key in the JSON object.\n\n"
             "Return ONLY raw JSON, with no markdown formatting. Do not wrap in ```json."
         )
         
         payload = {
-            "model": "sarvam-2b-instruct",  # Using a smaller fast model or fall back to sarvam-30b
+            "model": "sarvam-30b",
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"Transcript to parse: '{transcript}'"}
@@ -81,12 +89,7 @@ class SarvamClient:
         }
         
         try:
-            # First try the smaller instruction model
             response = httpx.post(url, headers=self.headers, json=payload, timeout=20.0)
-            if response.status_code == 404 or response.status_code == 400:
-                # Retry with sarvam-30b
-                payload["model"] = "sarvam-30b"
-                response = httpx.post(url, headers=self.headers, json=payload, timeout=20.0)
             response.raise_for_status()
             
             content = response.json()["choices"][0]["message"]["content"].strip()
@@ -100,7 +103,9 @@ class SarvamClient:
         except Exception as e:
             print(f"LLM Parsing Error: {e}")
             # Safe fallback parsing using basic regex/heuristic if LLM fails
-            return self._heuristic_parse(transcript)
+            res = self._heuristic_parse(transcript)
+            res["confirmation_message"] = "Action processed."
+            return res
 
     def text_to_speech(self, text: str, language_code: str = "hi-IN") -> bytes:
         """

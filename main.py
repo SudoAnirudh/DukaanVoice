@@ -88,15 +88,16 @@ async def voice_command(audio_file: UploadFile = File(...)):
         with open(temp_filepath, "wb") as buffer:
             buffer.write(await audio_file.read())
             
-        # 2. Convert Speech-to-Text using Sarvam Saaras
-        transcript = sarvam_client.speech_to_text(temp_filepath)
+        # 2. Convert Speech-to-Text using Sarvam Saaras (auto-detect language)
+        transcript, detected_lang = sarvam_client.speech_to_text(temp_filepath, language_code="unknown")
         if not transcript:
             raise HTTPException(status_code=400, detail="Microphone audio could not be transcribed.")
             
         # 3. Parse intent and entities using LLM
-        parsed = sarvam_client.parse_command(transcript)
+        parsed = sarvam_client.parse_command(transcript, detected_lang=detected_lang)
         intent = parsed.get("intent", "UNKNOWN")
         entities = parsed.get("entities", {})
+        confirmation_message = parsed.get("confirmation_message")
         
         # 4. Process DB Action
         db_updated = False
@@ -149,17 +150,26 @@ async def voice_command(audio_file: UploadFile = File(...)):
         else:
             message = "Command samajh nahi aaya. Kripya dobara koshish karein."
             
+        # Use LLM-generated confirmation message if available, fallback to Hindi templates
+        tts_prompt = confirmation_message or message
+        
+        # Match language code to supported Bulbul v3 list
+        supported_langs = ["hi-IN", "bn-IN", "ta-IN", "te-IN", "gu-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "od-IN", "en-IN"]
+        tts_lang = detected_lang if detected_lang in supported_langs else "hi-IN"
+        
         # Append stock alert to audio prompt if triggered
-        tts_prompt = message
         if low_stock_warnings:
-            tts_prompt += " Warning! " + " aur ".join(low_stock_warnings)
+            if tts_lang.startswith("hi"):
+                tts_prompt += " Warning! " + " aur ".join(low_stock_warnings)
+            else:
+                tts_prompt += " Warning! Low stock for " + " and ".join(low_stock_warnings)
             
-        # 5. Synthesize TTS response via Bulbul v3
+        # 5. Synthesize TTS response via Bulbul v3 in the detected language
         tts_filename = f"confirm_{uuid.uuid4().hex}.wav"
         tts_filepath = os.path.join(AUDIO_CACHE_DIR, tts_filename)
         
         try:
-            audio_bytes = sarvam_client.text_to_speech(tts_prompt)
+            audio_bytes = sarvam_client.text_to_speech(tts_prompt, language_code=tts_lang)
             with open(tts_filepath, "wb") as f:
                 f.write(audio_bytes)
             tts_audio_url = f"/static/audio_cache/{tts_filename}"
