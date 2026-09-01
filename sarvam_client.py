@@ -18,9 +18,9 @@ class SarvamClient:
             "Content-Type": "application/json"
         }
         
-    def speech_to_text(self, audio_file_path: str, language_code: str = "unknown") -> tuple[str, str]:
+    async def speech_to_text(self, audio_file_path: str, language_code: str = "unknown") -> tuple[str, str]:
         """
-        Sends audio file to Sarvam Saaras STT API and returns a tuple of (transcription, language_code).
+        Sends audio file to Sarvam Saaras STT API asynchronously and returns a tuple of (transcription, language_code).
         """
         url = f"{self.base_url}/speech-to-text"
         headers = {
@@ -39,23 +39,24 @@ class SarvamClient:
             }
             
             try:
-                response = httpx.post(url, headers=headers, files=files, data=data, timeout=30.0)
-                response.raise_for_status()
-                res_data = response.json()
-                transcript = res_data.get("transcript", "")
-                detected_lang = res_data.get("language_code") or language_code
-                if detected_lang == "unknown":
-                    detected_lang = "hi-IN"
-                return transcript, detected_lang
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(url, headers=headers, files=files, data=data)
+                    response.raise_for_status()
+                    res_data = response.json()
+                    transcript = res_data.get("transcript", "")
+                    detected_lang = res_data.get("language_code") or language_code
+                    if detected_lang == "unknown":
+                        detected_lang = "hi-IN"
+                    return transcript, detected_lang
             except Exception as e:
                 print(f"STT Error: {e}")
                 if response := locals().get("response"):
                     print(f"STT Response Content: {response.text}")
                 raise e
 
-    def parse_command(self, transcript: str, detected_lang: str = "hi-IN") -> Dict[str, Any]:
+    async def parse_command(self, transcript: str, detected_lang: str = "hi-IN") -> Dict[str, Any]:
         """
-        Queries Sarvam LLM to convert a raw transcription into structured JSON intent & entities,
+        Queries Sarvam LLM asynchronously to convert a raw transcription into structured JSON intent & entities,
         including a voice confirmation sentence in the user's spoken language.
         """
         url = f"{self.base_url}/v1/chat/completions"
@@ -68,13 +69,15 @@ class SarvamClient:
             "2. 'REMOVE_STOCK': Remove/sell items from inventory (e.g. 'maggi ke 2 packet kam karo').\n"
             "3. 'LOG_CREDIT': Log customer credit/udhaar (e.g. 'ramesh ko 50 rupees ki udhaar do', 'shyam ke account mein 100 rupees credit chadao').\n"
             "4. 'LOG_PAYMENT': Log customer payment received (e.g. 'ramesh ne 150 rupees diye', 'shyam ne 100 rupees pay kiye').\n"
-            "5. 'UNKNOWN': Use when intent is not clear.\n\n"
+            "5. 'QUERY_STOCK': Query current stock quantity of an item (e.g. 'maggi ka kitna stock hai?', 'kitne packet aata bacha hai?').\n"
+            "6. 'QUERY_BALANCE': Query outstanding credit balance of a customer (e.g. 'ramesh ka kitna udhaar baaki hai?', 'shyam ka balance batao').\n"
+            "7. 'UNKNOWN': Use when intent is not clear.\n\n"
             "Entities should be extracted inside an 'entities' dictionary. Clean customer_name and item_name to Title Case.\n"
             "Keys for entities:\n"
-            "- For stock: 'item_name' (string), 'quantity' (integer), 'cost_price' (float, default null), 'selling_price' (float, default null)\n"
-            "- For ledger: 'customer_name' (string), 'amount' (float, always positive), 'reason' (string description of goods, default null), 'phone_number' (string, default null)\n\n"
+            "- For stock add/remove/query: 'item_name' (string), 'quantity' (integer, default 1 for mutation), 'cost_price' (float, default null), 'selling_price' (float, default null)\n"
+            "- For ledger credit/payment/query: 'customer_name' (string), 'amount' (float, default 0), 'reason' (string description of goods, default null), 'phone_number' (string, default null)\n\n"
             f"Additionally, you MUST generate a short, natural confirmation message in the user's detected language: {detected_lang}. "
-            "For example, if adding stock of Maggi and language is ml-IN, write a Malayalam sentence stating that Maggi stock was added. "
+            "For example, if query is QUERY_STOCK for Maggi, write a sentence stating that you are checking Maggi stock. "
             "Return this message under the 'confirmation_message' key in the JSON object.\n\n"
             "Return ONLY raw JSON, with no markdown formatting. Do not wrap in ```json."
         )
@@ -89,17 +92,18 @@ class SarvamClient:
         }
         
         try:
-            response = httpx.post(url, headers=self.headers, json=payload, timeout=20.0)
-            response.raise_for_status()
-            
-            content = response.json()["choices"][0]["message"]["content"].strip()
-            # Clean possible markdown block markers
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
-            if content.startswith("json"):
-                content = content[4:].strip()
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post(url, headers=self.headers, json=payload)
+                response.raise_for_status()
                 
-            return json.loads(content)
+                content = response.json()["choices"][0]["message"]["content"].strip()
+                # Clean possible markdown block markers
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
+                if content.startswith("json"):
+                    content = content[4:].strip()
+                    
+                return json.loads(content)
         except Exception as e:
             print(f"LLM Parsing Error: {e}")
             # Safe fallback parsing using basic regex/heuristic if LLM fails
@@ -107,9 +111,9 @@ class SarvamClient:
             res["confirmation_message"] = "Action processed."
             return res
 
-    def text_to_speech(self, text: str, language_code: str = "hi-IN") -> bytes:
+    async def text_to_speech(self, text: str, language_code: str = "hi-IN") -> bytes:
         """
-        Sends text to Sarvam Bulbul TTS API and returns the decoded audio bytes (WAV/MP3).
+        Sends text to Sarvam Bulbul TTS API asynchronously and returns the decoded audio bytes (WAV/MP3).
         """
         url = f"{self.base_url}/text-to-speech"
         
@@ -125,13 +129,14 @@ class SarvamClient:
         }
         
         try:
-            response = httpx.post(url, json=payload, headers=self.headers, timeout=20.0)
-            response.raise_for_status()
-            res_data = response.json()
-            
-            # Extract base64 audio and decode
-            audio_b64 = res_data["audios"][0]
-            return base64.b64decode(audio_b64)
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post(url, json=payload, headers=self.headers)
+                response.raise_for_status()
+                res_data = response.json()
+                
+                # Extract base64 audio and decode
+                audio_b64 = res_data["audios"][0]
+                return base64.b64decode(audio_b64)
         except Exception as e:
             print(f"TTS Error: {e}")
             if 'response' in locals():
@@ -146,8 +151,30 @@ class SarvamClient:
         intent = "UNKNOWN"
         entities = {}
         
+        # Check query balance
+        if "kitna udhaar" in t or "kitna balance" in t or "udhaar kitna" in t:
+            intent = "QUERY_BALANCE"
+            names = ["ramesh", "suresh", "shyam", "mohan", "amit", "anil"]
+            for name in names:
+                if name in t:
+                    entities["customer_name"] = name.title()
+                    break
+            if "customer_name" not in entities:
+                entities["customer_name"] = "Ramesh Kumar"
+
+        # Check query stock
+        elif "kitna stock" in t or "kitna bacha" in t or "stock kitna" in t:
+            intent = "QUERY_STOCK"
+            items = ["maggi", "aata", "chinni", "sugar", "rice", "oil", "biscuits"]
+            for item in items:
+                if item in t:
+                    entities["item_name"] = item.title()
+                    break
+            if "item_name" not in entities:
+                entities["item_name"] = "Maggi Noodles"
+
         # Simple parsing for stock actions
-        if "stock" in t or "add" in t or "karo" in t or "packet" in t:
+        elif "stock" in t or "add" in t or "karo" in t or "packet" in t:
             intent = "ADD_STOCK"
             # Try to find quantity (numbers)
             words = t.split()
@@ -189,3 +216,4 @@ class SarvamClient:
             "intent": intent,
             "entities": entities
         }
+

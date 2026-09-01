@@ -61,13 +61,15 @@ async function submitPin() {
         const response = await fetch("/api/verify-pin", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            json: true,
             body: JSON.stringify({ pin: currentPin })
         });
         
         const data = await response.json();
         
         if (response.ok && data.authenticated) {
+            if (data.token) {
+                localStorage.setItem("dukaanvoice_token", data.token);
+            }
             pinOverlay.classList.add("hidden");
             appContainer.classList.remove("hidden");
             // Load dashboard data
@@ -81,6 +83,12 @@ async function submitPin() {
         showPinError();
     }
 }
+
+function getAuthHeaders() {
+    const token = localStorage.getItem("dukaanvoice_token");
+    return token ? { "Authorization": `Bearer ${token}` } : {};
+}
+
 
 function showPinError() {
     pinError.classList.add("visible");
@@ -105,7 +113,7 @@ async function fetchData() {
 
 async function fetchInventory() {
     try {
-        const response = await fetch("/api/inventory");
+        const response = await fetch("/api/inventory", { headers: getAuthHeaders() });
         const items = await response.json();
         
         const tbody = document.getElementById("inventory-list");
@@ -138,7 +146,7 @@ async function fetchInventory() {
 
 async function fetchLedger() {
     try {
-        const response = await fetch("/api/ledger");
+        const response = await fetch("/api/ledger", { headers: getAuthHeaders() });
         const entries = await response.json();
         
         // Sum balances per customer
@@ -181,8 +189,9 @@ async function fetchLedger() {
 
 async function fetchReminders() {
     try {
-        const response = await fetch("/api/reminders");
+        const response = await fetch("/api/reminders", { headers: getAuthHeaders() });
         const res = await response.json();
+
         
         const container = document.getElementById("reminders-list");
         container.innerHTML = "";

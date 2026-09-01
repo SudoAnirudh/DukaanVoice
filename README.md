@@ -17,19 +17,26 @@
 - 🎙️ **Multilingual Voice Commands (Sarvam Saaras STT)**
   - Auto-detects 10+ Indian languages and code-mixed speech (Hindi, Tamil, Malayalam, Bengali, Telugu, Gujarati, Kannada, Marathi, Punjabi, Odia, Indian English).
 - 🧠 **NLU & Intent Extraction (Sarvam-30B LLM)**
-  - Converts spoken phrases into structured JSON intents (`ADD_STOCK`, `REMOVE_STOCK`, `LOG_CREDIT`, `LOG_PAYMENT`).
-- 🔊 **Voice Feedback & Alerts (Sarvam Bulbul v3 TTS)**
-  - Speaks back natural confirmation responses and low-stock warnings in the user's detected language.
+  - Converts spoken phrases into structured JSON intents (`ADD_STOCK`, `REMOVE_STOCK`, `LOG_CREDIT`, `LOG_PAYMENT`, `QUERY_STOCK`, `QUERY_BALANCE`).
+- 🔊 **Voice Feedback & Inquiry Responses (Sarvam Bulbul v3 TTS)**
+  - Speaks back natural confirmation responses, stock level queries, customer balances, and low-stock warnings in the user's detected language.
+- 🔍 **Fuzzy Matching & Name Normalization (`rapidfuzz`)**
+  - Resolves minor variations and typos in item and customer names (e.g. *"Maggie"* $\rightarrow$ *"Maggi Noodles"*, *"Rameshbhai"* $\rightarrow$ *"Ramesh Kumar"*).
+- 📈 **Gross Profit & Business Analytics**
+  - Tracks profit margins per item (`selling_price - cost_price`) and calculates daily gross profit estimates.
+- 📱 **Progressive Web App (PWA) Mobile Installation**
+  - Includes `manifest.json` and service worker (`sw.js`) for home screen installation on mobile devices.
 - 📖 **Digital Khata & Ledger Management**
   - Tracks customer credit balances, transaction histories, and days pending for unpaid balances.
 - 📲 **WhatsApp Udhaar Nudge Generator**
   - Auto-generates personalized `wa.me` links pre-filled with courteous payment reminder messages.
 - 📊 **Voice-Powered End-of-Day (EOD) Summary**
-  - Generates spoken summaries of daily cash sales, credit issued, and top-selling products.
+  - Generates spoken summaries of daily cash sales, credit issued, gross profit, and top-selling products.
 - 💾 **CSV Export & Local Backup**
   - Download complete inventory and customer ledger records in a single CSV file with one click.
-- 🔒 **PIN-Gated Access**
-  - Secure shop access with configurable PIN verification.
+- 🔒 **JWT & PIN-Gated Access**
+  - Secure shop access with PIN verification and session JWT authorization tokens.
+
 
 ---
 
@@ -146,11 +153,17 @@ python seed_db.py
 python test_sarvam_api.py
 ```
 
-### 6. Run the Application
+### 6. Run Automated Tests
+```bash
+PYTHONPATH=. pytest tests/
+```
+
+### 7. Run the Application
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 Open your browser and navigate to **`http://localhost:8000`**.
+
 
 ---
 

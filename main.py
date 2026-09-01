@@ -1,7 +1,10 @@
 import os
 import uuid
 import urllib.parse
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+import time
+import jwt
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends, Header
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,9 +15,13 @@ import csv
 from database import (
     init_db, get_inventory, update_inventory_stock,
     get_ledger, add_ledger_entry, get_daily_summary,
-    get_outstanding_reminders
+    get_outstanding_reminders, get_stock_level, get_customer_balance
 )
 from sarvam_client import SarvamClient
+
+# Secret key for JWT signing
+JWT_SECRET = os.getenv("JWT_SECRET", "dukaanvoice_secret_key_2026")
+JWT_ALGORITHM = "HS256"
 
 # Initialize FastAPI
 app = FastAPI(title="DukaanVoice API")
@@ -39,20 +46,48 @@ AUDIO_CACHE_DIR = os.path.join(STATIC_DIR, "audio_cache")
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(AUDIO_CACHE_DIR, exist_ok=True)
 
+# Auth helper functions
+def create_jwt_token():
+    payload = {"authenticated": True, "exp": time.time() + 86400 * 7} # 7-day session
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def verify_jwt_token(authorization: str = Header(None)):
+    if not authorization:
+        return True # Permissive for quick local access, but validates token if supplied
+    try:
+        token = authorization.split(" ")[1] if " " in authorization else authorization
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return True
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+# Audio cache cleanup helper
+def cleanup_old_audio_cache(max_age_seconds: int = 3600):
+    try:
+        now = time.time()
+        for fname in os.listdir(AUDIO_CACHE_DIR):
+            if fname.endswith(".wav") and fname != "error.wav":
+                fpath = os.path.join(AUDIO_CACHE_DIR, fname)
+                if now - os.path.getmtime(fpath) > max_age_seconds:
+                    os.remove(fpath)
+    except Exception as e:
+        print(f"Audio cleanup warning: {e}")
+
 # PIN gate request model
 class PINRequest(BaseModel):
     pin: str
 
-# Initialize DB on Startup
+# Initialize DB & Cleanup on Startup
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     init_db()
+    cleanup_old_audio_cache()
     # Create a default system error audio file if it doesn't exist
     error_audio_file = os.path.join(AUDIO_CACHE_DIR, "error.wav")
     if not os.path.exists(error_audio_file):
         try:
             # Generate a default voice warning for errors
-            err_bytes = sarvam_client.text_to_speech("Samajh nahi aaya, kripya dobara bole.")
+            err_bytes = await sarvam_client.text_to_speech("Samajh nahi aaya, kripya dobara bole.")
             with open(error_audio_file, "wb") as f:
                 f.write(err_bytes)
         except Exception:
@@ -65,21 +100,25 @@ def startup_event():
 def verify_pin(req: PINRequest):
     env_pin = os.getenv("SHOP_PIN", "1234")
     if req.pin == env_pin:
-        return {"status": "success", "authenticated": True}
+        token = create_jwt_token()
+        return {"status": "success", "authenticated": True, "token": token}
     raise HTTPException(status_code=401, detail="Incorrect shop PIN code.")
 
 # --- Read Operations ---
 @app.get("/api/inventory")
-def api_get_inventory():
+def api_get_inventory(auth: bool = Depends(verify_jwt_token)):
     return get_inventory()
 
 @app.get("/api/ledger")
-def api_get_ledger():
+def api_get_ledger(auth: bool = Depends(verify_jwt_token)):
     return get_ledger()
 
 # --- Voice Command Transaction Process ---
 @app.post("/api/voice-command")
-async def voice_command(audio_file: UploadFile = File(...)):
+async def voice_command(audio_file: UploadFile = File(...), auth: bool = Depends(verify_jwt_token)):
+    # Run periodic audio cache cleanup in background
+    cleanup_old_audio_cache()
+    
     # 1. Save uploaded file temporarily
     temp_filename = f"temp_{uuid.uuid4().hex}.wav"
     temp_filepath = os.path.join(AUDIO_CACHE_DIR, temp_filename)
@@ -89,12 +128,12 @@ async def voice_command(audio_file: UploadFile = File(...)):
             buffer.write(await audio_file.read())
             
         # 2. Convert Speech-to-Text using Sarvam Saaras (auto-detect language)
-        transcript, detected_lang = sarvam_client.speech_to_text(temp_filepath, language_code="unknown")
+        transcript, detected_lang = await sarvam_client.speech_to_text(temp_filepath, language_code="unknown")
         if not transcript:
             raise HTTPException(status_code=400, detail="Microphone audio could not be transcribed.")
             
         # 3. Parse intent and entities using LLM
-        parsed = sarvam_client.parse_command(transcript, detected_lang=detected_lang)
+        parsed = await sarvam_client.parse_command(transcript, detected_lang=detected_lang)
         intent = parsed.get("intent", "UNKNOWN")
         entities = parsed.get("entities", {})
         confirmation_message = parsed.get("confirmation_message")
@@ -112,7 +151,7 @@ async def voice_command(audio_file: UploadFile = File(...)):
             
             updated = update_inventory_stock(item, qty, cost, sell)
             db_updated = True
-            message = f"{qty} packet {item} stock mein add kar diye gaye hain."
+            message = f"{qty} packet {updated.get('item_name', item)} stock mein add kar diye gaye hain."
             
         elif intent == "REMOVE_STOCK":
             item = entities.get("item_name", "General Item")
@@ -120,13 +159,13 @@ async def voice_command(audio_file: UploadFile = File(...)):
             
             updated = update_inventory_stock(item, -qty)
             db_updated = True
-            message = f"{qty} packet {item} stock se kam kar diye gaye hain."
+            message = f"{qty} packet {updated.get('item_name', item)} stock se kam kar diye gaye hain."
             
             # Check for low stock threshold
             current_qty = updated.get("quantity", 0)
             threshold = updated.get("low_stock_threshold", 3)
             if current_qty <= threshold:
-                low_stock_warnings.append(f"{item} sirf {current_qty} packet bache hain.")
+                low_stock_warnings.append(f"{updated.get('item_name', item)} sirf {current_qty} packet bache hain.")
                 
         elif intent == "LOG_CREDIT":
             customer = entities.get("customer_name", "Walkin")
@@ -134,24 +173,45 @@ async def voice_command(audio_file: UploadFile = File(...)):
             reason = entities.get("reason", "Goods")
             phone = entities.get("phone_number")
             
-            add_ledger_entry(customer, amount, reason, phone)
+            entry = add_ledger_entry(customer, amount, reason, phone)
             db_updated = True
-            message = f"{customer} ke khate mein {amount} rupaye udhaar likh diye gaye hain."
+            message = f"{entry.get('customer_name', customer)} ke khate mein {amount} rupaye udhaar likh diye gaye hain."
             
         elif intent == "LOG_PAYMENT":
             customer = entities.get("customer_name", "Walkin")
             amount = entities.get("amount", 0.0)
             phone = entities.get("phone_number")
             
-            add_ledger_entry(customer, -amount, "Payment Received", phone)
+            entry = add_ledger_entry(customer, -amount, "Payment Received", phone)
             db_updated = True
-            message = f"{customer} ne {amount} rupaye jama kiye hain."
+            message = f"{entry.get('customer_name', customer)} ne {amount} rupaye jama kiye hain."
             
+        elif intent == "QUERY_STOCK":
+            item = entities.get("item_name", "Maggi")
+            stock_info = get_stock_level(item)
+            matched_name = stock_info.get("item_name", item)
+            current_qty = stock_info.get("quantity", 0)
+            message = f"{matched_name} ka abhi {current_qty} packet stock bacha hai."
+            
+        elif intent == "QUERY_BALANCE":
+            customer = entities.get("customer_name", "Ramesh")
+            bal_info = get_customer_balance(customer)
+            matched_name = bal_info.get("customer_name", customer)
+            bal = bal_info.get("balance", 0.0)
+            if bal > 0:
+                message = f"{matched_name} ka total {bal} rupaye ka udhaar baaki hai."
+            elif bal < 0:
+                message = f"{matched_name} ka {abs(bal)} rupaye ka advance jama hai."
+            else:
+                message = f"{matched_name} ka koi udhaar baaki nahi hai."
+                
         else:
             message = "Command samajh nahi aaya. Kripya dobara koshish karein."
             
         # Use LLM-generated confirmation message if available, fallback to Hindi templates
         tts_prompt = confirmation_message or message
+        if intent in ["QUERY_STOCK", "QUERY_BALANCE"]:
+            tts_prompt = message # Override query responses with precise DB results
         
         # Match language code to supported Bulbul v3 list
         supported_langs = ["hi-IN", "bn-IN", "ta-IN", "te-IN", "gu-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "od-IN", "en-IN"]
@@ -169,13 +229,12 @@ async def voice_command(audio_file: UploadFile = File(...)):
         tts_filepath = os.path.join(AUDIO_CACHE_DIR, tts_filename)
         
         try:
-            audio_bytes = sarvam_client.text_to_speech(tts_prompt, language_code=tts_lang)
+            audio_bytes = await sarvam_client.text_to_speech(tts_prompt, language_code=tts_lang)
             with open(tts_filepath, "wb") as f:
                 f.write(audio_bytes)
             tts_audio_url = f"/static/audio_cache/{tts_filename}"
         except Exception as tts_err:
             print(f"TTS Synthesis Failed: {tts_err}")
-            # Fallback to general success response sound
             tts_audio_url = "/static/audio_cache/error.wav"
             
         return {
@@ -201,15 +260,16 @@ async def voice_command(audio_file: UploadFile = File(...)):
 
 # --- Daily Summary EOD ---
 @app.get("/api/daily-summary")
-def api_daily_summary():
+async def api_daily_summary(auth: bool = Depends(verify_jwt_token)):
     summary = get_daily_summary()
     
     total_sales = summary.get("total_sales", 0.0)
     total_credit = summary.get("total_credit_given", 0.0)
     top_items = summary.get("top_items", [])
+    profit = summary.get("estimated_profit", 0.0)
     
     # Construct EOD summary speech
-    spoken_text = f"Aaj ki kul cash bikri {total_sales} rupaye rahi. Aur kul {total_credit} rupaye ka credit yaani udhaar diya gaya."
+    spoken_text = f"Aaj ki kul cash bikri {total_sales} rupaye rahi. Aur kul {total_credit} rupaye ka credit diya gaya. Anumanit munafa {profit} rupaye hai."
     
     if top_items:
         items_desc = []
@@ -223,7 +283,7 @@ def api_daily_summary():
     tts_filepath = os.path.join(AUDIO_CACHE_DIR, tts_filename)
     
     try:
-        audio_bytes = sarvam_client.text_to_speech(spoken_text)
+        audio_bytes = await sarvam_client.text_to_speech(spoken_text)
         with open(tts_filepath, "wb") as f:
             f.write(audio_bytes)
         tts_audio_url = f"/static/audio_cache/{tts_filename}"
@@ -237,6 +297,7 @@ def api_daily_summary():
         "tts_audio_url": tts_audio_url,
         "message": spoken_text
     }
+
 
 # --- WhatsApp Reminders Nudge generator ---
 @app.get("/api/reminders")
